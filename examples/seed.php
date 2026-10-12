@@ -5,7 +5,7 @@ require_once 'vendor/autoload.php';
 $start = microtime(true);
 
 // 1. Establish PDO PostgreSQL Connection
-$dsn = "pgsql:host=localhost;port=5432;dbname=analytics_db;";
+$dsn = "pgsql:host=host.docker.internal;port=5432;dbname=analytics_db;";
 $user = "user";
 $password = "pass";
 

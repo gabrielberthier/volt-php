@@ -109,7 +109,7 @@ function saveDataToFile(string $filePath, string $content, bool $append = false)
 foreach ($results as $region => $data) {
     saveDataToFile(__DIR__ . "/data/sync/export-{$region}.json", json_encode($data));
     $path = __DIR__ . "/data/sync/export-{$region}.json";
-    echo "Saved {$path}";
+    echo "Saved {$path}" . PHP_EOL;
 
 }
 

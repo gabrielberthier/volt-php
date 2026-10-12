@@ -140,7 +140,7 @@ foreach ($results as $region => $value) {
 
         saveDataToFileAsync($path, json_encode($value));
 
-        return "Saved {$path}";
+        return "Saved {$path} " . PHP_EOL;
     });
 }
 
@@ -148,7 +148,7 @@ foreach ($results as $region => $value) {
 $results = await($futures);
 
 foreach ($results as $result) {
-    echo $result . "\n";
+    echo $result;
 }
 
 $end = microtime(true);
