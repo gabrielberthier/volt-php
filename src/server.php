@@ -1,7 +1,6 @@
 <?php
 
-require __DIR__ . '/../vendor/autoload.php';
-
+require __DIR__.'/../vendor/autoload.php';
 
 use Asyncopath\RouterSingleton;
 use PHPStreamServer\Core\Server;
@@ -12,14 +11,14 @@ use PHPStreamServer\Plugin\HttpServer\HttpServerPlugin;
 use PHPStreamServer\Plugin\HttpServer\ReloadStrategy\MaxRequestsReloadStrategy;
 use PHPStreamServer\Plugin\HttpServer\Worker\HttpServerProcess;
 
-$routerSettings = require __DIR__ . '/router.php';
+$routerSettings = require __DIR__.'/router.php';
 
-$server = new Server();
+$server = new Server;
 
 $server->addPlugin(
-    new HttpServerPlugin(
+    new HttpServerPlugin
         // Optional. HttpServerPlugin configuration
-    ),
+    ,
 );
 
 $server->addPlugin(
@@ -35,7 +34,7 @@ $server->addPlugin(
 
 $currentTime = time();
 
-$router = new RouterSingleton();
+$router = new RouterSingleton;
 
 $server->addWorker(
     new HttpServerProcess(

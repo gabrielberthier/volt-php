@@ -37,7 +37,7 @@ class Bridge
 
         // 5. Transfer Query Parameters
         $queryString = $ampRequest->getUri()->getQuery();
-        if (!empty($queryString)) {
+        if (! empty($queryString)) {
             parse_str($queryString, $queryParams);
             $psrRequest = $psrRequest->withQueryParams($queryParams);
         }

@@ -2,12 +2,10 @@
 
 namespace Asyncopath;
 
-use Asyncopath\Factories\RouterFactory;
 use Amp\Http\Server\Request;
 use Amp\Http\Server\RequestHandler;
 use Amp\Http\Server\Response;
-
-
+use Asyncopath\Factories\RouterFactory;
 
 class RouterSingleton implements RequestHandler
 {
@@ -17,7 +15,7 @@ class RouterSingleton implements RequestHandler
     {
         self::$router = RouterFactory::create();
 
-        $routerSettings = require __DIR__ . '/router.php';
+        $routerSettings = require __DIR__.'/router.php';
 
         $routerSettings(self::$router);
     }
@@ -26,7 +24,7 @@ class RouterSingleton implements RequestHandler
     {
         self::$router = RouterFactory::create();
 
-        $routerSettings = require __DIR__ . '/router.php';
+        $routerSettings = require __DIR__.'/router.php';
 
         $routerSettings(self::$router);
     }
@@ -35,6 +33,4 @@ class RouterSingleton implements RequestHandler
     {
         return self::$router->handleRequest($request);
     }
-
-
 }

@@ -9,8 +9,11 @@ use RuntimeException;
 class AmpReadableStreamWrapper implements StreamInterface
 {
     private ?ReadableStream $stream;
+
     private string $buffer = '';
+
     private bool $eof = false;
+
     private int $position = 0;
 
     public function __construct(ReadableStream $stream)
@@ -39,6 +42,7 @@ class AmpReadableStreamWrapper implements StreamInterface
     {
         $stream = $this->stream;
         $this->stream = null;
+
         return $stream;
     }
 
@@ -91,7 +95,7 @@ class AmpReadableStreamWrapper implements StreamInterface
 
     public function read(int $length): string
     {
-        if (!$this->isReadable()) {
+        if (! $this->isReadable()) {
             throw new RuntimeException('Stream is detached or closed.');
         }
 
@@ -103,11 +107,12 @@ class AmpReadableStreamWrapper implements StreamInterface
             return '';
         }
 
-        if ($this->buffer === '' && !$this->eof) {
+        if ($this->buffer === '' && ! $this->eof) {
             $chunk = $this->stream->read();
 
             if ($chunk === null) {
                 $this->eof = true;
+
                 return '';
             }
 
@@ -127,7 +132,7 @@ class AmpReadableStreamWrapper implements StreamInterface
 
     public function getContents(): string
     {
-        if (!$this->isReadable()) {
+        if (! $this->isReadable()) {
             throw new RuntimeException('Stream is detached or closed.');
         }
 
@@ -147,6 +152,7 @@ class AmpReadableStreamWrapper implements StreamInterface
     public function getMetadata(?string $key = null)
     {
         $metadata = ['eof' => $this->eof()];
+
         return $key === null ? $metadata : ($metadata[$key] ?? null);
     }
 }

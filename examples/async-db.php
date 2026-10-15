@@ -1,13 +1,13 @@
 <?php
 
-require __DIR__ . '/../vendor/autoload.php';
+require __DIR__.'/../vendor/autoload.php';
 
+use Amp\File;
 use Doctrine\DBAL\DriverManager;
 use Luzrain\DbalDriver\AmphpPostgres\AsyncConection;
 use Luzrain\DbalDriver\AmphpPostgres\AsyncDriver;
-use Amp\File;
+
 use function Amp\async;
-use function Amp\File\createDirectory;
 use function Amp\File\createDirectoryRecursively;
 use function Amp\File\isDirectory;
 use function Amp\File\write;
@@ -35,7 +35,7 @@ $conn = DriverManager::getConnection($connectionParams);
 $regions = ['North America', 'Europe', 'Asia'];
 $futures = [];
 
-$heavy_pg_sql_query = <<<SQL
+$heavy_pg_sql_query = <<<'SQL'
 WITH MonthlyCategoryStats AS (
     -- 1. First, handle the grouping and aggregations
     SELECT
@@ -75,7 +75,6 @@ ORDER BY
     total_revenue DESC;
 SQL;
 
-
 // 2. Dispatch all queries asynchronously using Fibers
 foreach ($regions as $region) {
 
@@ -83,7 +82,7 @@ foreach ($regions as $region) {
     // They will all run concurrently without blocking the main PHP thread.
     $futures[$region] = async(function () use ($conn, $region, $heavy_pg_sql_query) {
 
-        $query = "/* Inject Region Filter for $region */ " . $heavy_pg_sql_query;
+        $query = "/* Inject Region Filter for $region */ ".$heavy_pg_sql_query;
 
         // The Fiber suspends here while waiting for MySQL to process the heavy query.
         // It hands control back to the event loop so the other regions can start their queries.
@@ -107,19 +106,19 @@ $results = await($futures);
 
 $end = microtime(true);
 
-echo "AMPHP asynchronous execution took: " . round($end - $start, 2) . " seconds.\n";
+echo 'AMPHP asynchronous execution took: '.round($end - $start, 2)." seconds.\n";
 // Output: AMPHP asynchronous execution took: 2.01 seconds.
 
 /**
  * Asynchronously saves string data to a file using AMPHP.
  *
- * @param string $filePath The full path where the file should be saved.
- * @param string $content The data to write to the file.
+ * @param  string  $filePath  The full path where the file should be saved.
+ * @param  string  $content  The data to write to the file.
  */
 function saveDataToFileAsync(string $filePath, string $content): void
 {
     $dir = dirname($filePath);
-    if(!isDirectory($dir)){
+    if (! isDirectory($dir)) {
         createDirectoryRecursively($dir, 0755);
     }
     write($filePath, $content);
@@ -136,11 +135,11 @@ foreach ($results as $region => $value) {
     // Amp\async creates a new coroutine (Fiber).
     // All 5 operations will run in parallel.
     $futures[] = async(function () use ($region, $value) {
-        $path = __DIR__ . "/data/async_export/export_{$region}.json";
+        $path = __DIR__."/data/async_export/export_{$region}.json";
 
         saveDataToFileAsync($path, json_encode($value));
 
-        return "Saved {$path} " . PHP_EOL;
+        return "Saved {$path} ".PHP_EOL;
     });
 }
 
@@ -152,4 +151,4 @@ foreach ($results as $result) {
 }
 
 $end = microtime(true);
-echo "Completed asynchronous file operations in " . round($end - $start, 4) . " seconds.\n";
+echo 'Completed asynchronous file operations in '.round($end - $start, 4)." seconds.\n";

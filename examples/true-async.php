@@ -6,9 +6,9 @@ use function Async\spawn;
 $start = microtime(true);
 
 // 1. Establish PDO PostgreSQL Connection
-$dsn = "pgsql:host=host.docker.internal;port=5432;dbname=analytics_db;";
-$user = "user";
-$password = "pass";
+$dsn = 'pgsql:host=host.docker.internal;port=5432;dbname=analytics_db;';
+$user = 'user';
+$password = 'pass';
 
 try {
     $pdo = new PDO($dsn, $user, $password, [
@@ -19,13 +19,13 @@ try {
         PDO::ATTR_POOL_MAX => 10,
     ]);
 } catch (PDOException $e) {
-    die("Connection failed: " . $e->getMessage());
+    exit('Connection failed: '.$e->getMessage());
 }
 
 $regions = ['North America', 'Europe', 'Asia'];
 $results = [];
 
-$heavy_pg_sql_query = <<<SQL
+$heavy_pg_sql_query = <<<'SQL'
 WITH MonthlyCategoryStats AS (
     -- 1. First, handle the grouping and aggregations
     SELECT
@@ -69,10 +69,11 @@ $futures = [];
 // 2. Execute sequentially (BLOCKING)
 foreach ($regions as $region) {
     // Inject region filter comment or parameter
-    $query = "/* Region: $region */ " . $heavy_pg_sql_query;
+    $query = "/* Region: $region */ ".$heavy_pg_sql_query;
     // $stmt = spawn(fn() => $pdo->query($query));
     $futures[] = spawn(function () use ($pdo, $query, $region) {
         $stmt = $pdo->query($query);
+
         return [$region => $stmt->fetchAll()];
     });
 }
@@ -84,16 +85,16 @@ foreach ($resultsAwaited as $key => $value) {
 }
 
 $end = microtime(true);
-echo "Synchronous PDO (PostgreSQL) execution took: " . round($end - $start, 2) . " seconds.\n";
+echo 'Synchronous PDO (PostgreSQL) execution took: '.round($end - $start, 2)." seconds.\n";
 
 $start = microtime(true);
 
 /**
  * Saves string data to a file.
  *
- * @param string $filePath The full path where the file should be saved.
- * @param string $content The data to write to the file.
- * @param bool $append If true, adds to the end of the file instead of overwriting.
+ * @param  string  $filePath  The full path where the file should be saved.
+ * @param  string  $content  The data to write to the file.
+ * @param  bool  $append  If true, adds to the end of the file instead of overwriting.
  * @return bool True on success, False on failure.
  */
 function saveDataToFile(string $filePath, string $content, bool $append = false): bool
@@ -102,10 +103,9 @@ function saveDataToFile(string $filePath, string $content, bool $append = false)
     $directory = dirname($filePath);
 
     // Create the directory if it doesn't exist
-    if (!is_dir($directory)) {
+    if (! is_dir($directory)) {
         mkdir($directory, 0755, true);
     }
-
 
     // Write the contents to the file
     $result = file_put_contents($filePath, $content);
@@ -121,8 +121,8 @@ $fileFutures = [];
 
 foreach ($results as $region => $data) {
     $fileFutures[] = spawn(function () use ($region, $data) {
-        saveDataToFile(__DIR__ . "/data/sync/export-{$region}.json", json_encode($data));
-        $path = __DIR__ . "/data/sync/export-{$region}.json";
+        saveDataToFile(__DIR__."/data/sync/export-{$region}.json", json_encode($data));
+        $path = __DIR__."/data/sync/export-{$region}.json";
         echo "Saved {$path}";
     });
 }
@@ -131,7 +131,6 @@ await_all_or_fail($fileFutures);
 
 $end = microtime(true);
 
-echo "Synchronous File Saving (JSON) execution took: " . round($end - $start, 4) . " seconds.\n";
-
+echo 'Synchronous File Saving (JSON) execution took: '.round($end - $start, 4)." seconds.\n";
 
 // Output: Synchronous PDO (PostgreSQL) execution took: 6.05 seconds.

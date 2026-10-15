@@ -14,10 +14,10 @@ class SqlJoin
         foreach ($rows as $row) {
             $pkValue = $row[$leftPk];
 
-            if (!\array_key_exists($pkValue, $map)) {
+            if (! \array_key_exists($pkValue, $map)) {
                 $leftObject = array_reduce(
                     $leftCols,
-                    fn(array $carry, string $col) => [...$carry, $col => $row[$col] ?? null],
+                    fn (array $carry, string $col) => [...$carry, $col => $row[$col] ?? null],
                     []
                 );
                 $map[$pkValue] = $leftObject;
@@ -30,6 +30,7 @@ class SqlJoin
 
     /**
      * Parses flat SQL LEFT JOIN results into a nested structure.
+     *
      * @param array rows - The flat array of objects from the database.
      * @param string leftPk - The primary key column name of the left table.
      * @param string[] leftCols - The column names belonging to the left table.
@@ -50,10 +51,10 @@ class SqlJoin
         foreach ($rows as $row) {
             $pkValue = $row[$leftPk];
 
-            if (!\array_key_exists($pkValue, $map)) {
+            if (! \array_key_exists($pkValue, $map)) {
                 $leftObject = array_reduce(
                     $leftCols,
-                    fn(array $carry, string $col) => [...$carry, $col => $row[$col] ?? null],
+                    fn (array $carry, string $col) => [...$carry, $col => $row[$col] ?? null],
                     []
                 );
                 $leftObject[$arrayName] = [];
@@ -62,7 +63,7 @@ class SqlJoin
             if (\count($rightCols) && $row[$rightCols[0]]) {
                 $rightObject = array_reduce(
                     $rightCols,
-                    fn(array $carry, string $col) => [...$carry, $col => $row[$col] ?? null],
+                    fn (array $carry, string $col) => [...$carry, $col => $row[$col] ?? null],
                     []
                 );
 
@@ -75,6 +76,7 @@ class SqlJoin
 
     /**
      * Parses flat SQL LEFT JOIN results into a nested structure.
+     *
      * @param array rows - The flat array of objects from the database.
      * @param string leftPk - The primary key column name of the left table.
      * @param string[] leftCols - The column names belonging to the left table.
@@ -95,10 +97,10 @@ class SqlJoin
         foreach ($rows as $row) {
             $pkValue = $row[$leftPk];
 
-            if (!\array_key_exists($pkValue, $map)) {
+            if (! \array_key_exists($pkValue, $map)) {
                 $leftObject = array_reduce(
                     $leftCols,
-                    fn(array $carry, string $col) => [...$carry, $col => $row[$col] ?? null],
+                    fn (array $carry, string $col) => [...$carry, $col => $row[$col] ?? null],
                     []
                 );
                 $leftObject[$arrayName] = [];
@@ -107,7 +109,7 @@ class SqlJoin
             if (\count($rightCols) && $row[$rightCols[0]]) {
                 $rightObject = array_reduce(
                     $rightCols,
-                    fn(array $carry, string $col) => [...$carry, $col => $row[$col] ?? null],
+                    fn (array $carry, string $col) => [...$carry, $col => $row[$col] ?? null],
                     []
                 );
 
