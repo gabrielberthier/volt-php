@@ -1,0 +1,7 @@
+.git
+.github
+.phpunit.cache
+vendor
+examples/data
+benchmark/results
+docs
