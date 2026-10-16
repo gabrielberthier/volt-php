@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace Asyncopath;
 
-use App\Middleware\CorsMiddleware;
+use Asyncopath\Middlewares\CorsMiddleware;
 use Asyncopath\Usecases\DbOrdersRead;
+use Asyncopath\Whiteboard\Whiteboard;
 use League\Route\Strategy\JsonStrategy;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use Nyholm\Psr7\Response;
@@ -59,6 +60,20 @@ return static function (Router $router) {
 
         return $response;
     });
+
+    // Shared whiteboard: the page draws with Drawably controls and syncs
+    // strokes through the websocket below. Open /whiteboard in two tabs.
+    $whiteboard = new Whiteboard;
+
+    $router->get('/whiteboard', function (ServerRequestInterface $request): ResponseInterface {
+        return new Response(
+            200,
+            ['Content-Type' => 'text/html; charset=utf-8'],
+            file_get_contents(__DIR__.'/Whiteboard/whiteboard.html'),
+        );
+    });
+
+    $router->websocket('/whiteboard/ws', $whiteboard);
 
     $router->middleware(new CorsMiddleware(
         responseFactory: new Psr17Factory,

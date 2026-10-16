@@ -41,7 +41,9 @@ $server->addWorker(
         // HttpServerProcess configuration
         name: 'Web Server', // Worker name
         listen: '0.0.0.0:8080', // Address to listen on
-        count: 2, // Number of worker processes
+        // One worker: the whiteboard keeps its board and websocket clients in
+        // this process's memory, so every client must land on the same worker.
+        count: 1,
         onRequest: $router->handleRequest(...),
         reloadStrategies: [
             new MaxRequestsReloadStrategy(100),
@@ -50,7 +52,11 @@ $server->addWorker(
             $currentTime = time();
             $router->restartRouter();
             $worker->logger->notice("Worker process has started at $currentTime");
-        }
+        },
+        onStop: function () use ($router): void {
+            // Close websocket connections cleanly before the worker exits.
+            $router->stop();
+        },
     ),
 );
 

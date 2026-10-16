@@ -22,11 +22,17 @@ class RouterSingleton implements RequestHandler
 
     public function restartRouter()
     {
+        self::$router->stop();
         self::$router = RouterFactory::create();
 
         $routerSettings = require __DIR__.'/router.php';
 
         $routerSettings(self::$router);
+    }
+
+    public function stop(): void
+    {
+        self::$router->stop();
     }
 
     public function handleRequest(Request $request): Response
