@@ -1,0 +1,612 @@
+<title>Sync vs Async PHP</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column (~760px) of sections; each section pairs a short explanation with one diagram or chart drawn at the container's real width. */
+:root {
+  --bg: #f5f6f8;
+  --surface: #ffffff;
+  --ink: #11141a;
+  --ink-2: #474e5c;
+  --ink-3: #737b8a;
+  --rule: #e1e4ea;
+  --grid: #eceef2;
+  --sync: #eb6834;
+  --async: #2a78d6;
+  --db: #1baf7a;
+  --chip: #eef1f5;
+  --font-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111317; --surface: #191c21; --ink: #f2f3f5; --ink-2: #b7bdc8; --ink-3: #8b92a0;
+    --rule: #2b2f37; --grid: #23272e; --sync: #d95926; --async: #3987e5; --db: #199e70; --chip: #232730;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111317; --surface: #191c21; --ink: #f2f3f5; --ink-2: #b7bdc8; --ink-3: #8b92a0;
+  --rule: #2b2f37; --grid: #23272e; --sync: #d95926; --async: #3987e5; --db: #199e70; --chip: #232730;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font: 400 16px/1.6 var(--font-body);
+  padding-inline: 16px;
+  padding-block: 40px 64px;
+}
+.page { max-width: 780px; margin-inline: auto; display: grid; gap: 56px; }
+h1, h2 { font-family: var(--font-display); text-wrap: balance; margin: 0; letter-spacing: -0.01em; }
+h1 { font-size: clamp(2rem, 5vw, 2.9rem); line-height: 1.08; font-weight: 700; }
+h2 { font-size: 1.55rem; line-height: 1.2; font-weight: 600; }
+h3 { font: 600 1rem/1.3 var(--font-body); margin: 0; }
+p { margin: 0; max-width: 66ch; }
+code, .mono { font-family: var(--font-mono); font-size: 0.88em; }
+.eyebrow { font: 500 0.74rem/1 var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); }
+.muted { color: var(--ink-2); }
+.small { font-size: 0.86rem; color: var(--ink-3); }
+
+header { display: grid; gap: 18px; }
+header .lede { font-size: 1.12rem; color: var(--ink-2); }
+
+.figures { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+.figure { background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; padding: 16px 18px; display: grid; gap: 4px; align-content: start; }
+.figure .value { font: 600 2.1rem/1.1 var(--font-body); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.figure .label { font-size: 0.92rem; color: var(--ink-2); }
+.figure .label code { color: var(--ink); }
+
+section { display: grid; gap: 16px; }
+section > .intro { display: grid; gap: 10px; }
+.panel { background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; padding: 18px; display: grid; gap: 12px; min-width: 0; }
+.chart { width: 100%; min-width: 0; position: relative; }
+.chart svg { display: block; width: 100%; overflow: visible; }
+
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 0.86rem; color: var(--ink-2); }
+.legend span { display: inline-flex; align-items: center; gap: 7px; }
+.key { width: 14px; height: 10px; border-radius: 2px; display: inline-block; }
+.key.sync { background: var(--sync); }
+.key.async { background: var(--async); }
+.key.db { background: var(--db); }
+.key.cpu { background: var(--ink-2); }
+.key.wait { background: repeating-linear-gradient(135deg, var(--ink-3) 0 2px, transparent 2px 5px); border: 1px solid var(--ink-3); }
+.key.line { height: 2px; border-radius: 1px; }
+
+.lanes-title { font: 600 0.92rem/1.3 var(--font-body); display: flex; align-items: center; gap: 8px; }
+.dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+.dot.sync { background: var(--sync); }
+.dot.async { background: var(--async); }
+
+.two-up { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+.multiples { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+.multiple { background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; padding: 14px 16px; display: grid; gap: 8px; align-content: start; min-width: 0; }
+.multiple header { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.multiple h3 { font-family: var(--font-mono); font-weight: 500; font-size: 0.95rem; }
+.chip { font: 500 0.78rem/1 var(--font-mono); padding: 5px 8px; border-radius: 99px; background: var(--chip); color: var(--ink); white-space: nowrap; }
+.chip.win { box-shadow: inset 0 0 0 1.5px var(--async); }
+.multiple .what { font-size: 0.86rem; color: var(--ink-2); }
+.multiple .p50 { font-size: 0.82rem; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+
+.tablewrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; }
+table { border-collapse: collapse; width: 100%; font-size: 0.88rem; font-variant-numeric: tabular-nums; }
+th, td { padding: 9px 12px; text-align: right; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+th:first-child, td:first-child, th.l, td.l { text-align: left; }
+thead th { font: 500 0.74rem/1.2 var(--font-mono); letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-3); }
+tbody tr:last-child td { border-bottom: 0; }
+td .dot { margin-right: 6px; }
+.fixes td { white-space: normal; min-width: 150px; vertical-align: top; text-align: left; }
+.fixes td.num { white-space: nowrap; text-align: right; min-width: 0; }
+
+details { background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; }
+details summary { cursor: pointer; padding: 12px 16px; font-weight: 500; }
+details summary:focus-visible { outline: 2px solid var(--async); outline-offset: 2px; border-radius: 10px; }
+details .tablewrap { border: 0; border-top: 1px solid var(--rule); border-radius: 0 0 10px 10px; }
+
+footer { display: grid; gap: 8px; font-size: 0.86rem; color: var(--ink-3); border-top: 1px solid var(--rule); padding-top: 20px; }
+
+/* SVG roles */
+.t { fill: var(--ink-2); font: 400 12px var(--font-body); }
+.t-mono { fill: var(--ink-3); font: 400 11px var(--font-mono); }
+.t-strong { fill: var(--ink); font: 600 12px var(--font-body); }
+.t-val { fill: var(--ink); font: 500 12px var(--font-mono); }
+.grid { stroke: var(--grid); stroke-width: 1; }
+.axis { stroke: var(--rule); stroke-width: 1; }
+.f-sync { fill: var(--sync); } .f-async { fill: var(--async); } .f-db { fill: var(--db); } .f-cpu { fill: var(--ink-2); }
+.f-surface { fill: var(--surface); }
+.s-sync { stroke: var(--sync); } .s-async { stroke: var(--async); }
+.ln { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.ref { stroke-width: 1; opacity: 0.55; }
+.wait-sync { fill: url(#hatch-sync); stroke: var(--sync); stroke-width: 1; }
+.wait-async { fill: url(#hatch-async); stroke: var(--async); stroke-width: 1; }
+.queue { fill: none; stroke: var(--ink-3); stroke-width: 1; stroke-dasharray: 3 3; }
+.cross { stroke: var(--ink-3); stroke-width: 1; }
+.hit { fill: transparent; cursor: default; }
+.hit:focus { outline: none; }
+.hit:focus-visible { stroke: var(--ink); stroke-width: 1.5; }
+
+#tip {
+  position: fixed; pointer-events: none; z-index: 10; max-width: 260px;
+  background: var(--surface); color: var(--ink); border: 1px solid var(--rule);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.12); border-radius: 8px; padding: 8px 10px;
+  font-size: 0.82rem; line-height: 1.45; font-variant-numeric: tabular-nums;
+}
+#tip b { font-weight: 600; }
+#tip .row { display: flex; align-items: center; gap: 6px; }
+@media (prefers-reduced-motion: no-preference) { #tip { transition: opacity 80ms; } }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <pattern id="hatch-sync" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="5" height="5" style="fill:var(--surface)"></rect>
+      <rect width="1.6" height="5" style="fill:var(--sync)" opacity="0.55"></rect>
+    </pattern>
+    <pattern id="hatch-async" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="5" height="5" style="fill:var(--surface)"></rect>
+      <rect width="1.6" height="5" style="fill:var(--async)" opacity="0.55"></rect>
+    </pattern>
+  </defs>
+</svg>
+
+<div class="page">
+
+<header>
+  <span class="eyebrow">volt-php benchmark · 15 Oct 2026 · Docker Compose · k6</span>
+  <h1>Sync vs async PHP, measured</h1>
+  <p class="lede">The same SQL and the same CPU work, served two ways: PHP-FPM with blocking PDO, and an AMPHP event loop with non-blocking Postgres. Both servers get 2 CPUs. Async wins when PHP is waiting. It changes nothing when Postgres or the CPU is doing the work.</p>
+  <div class="figures">
+    <div class="figure"><span class="value">3.9×</span><span class="label">more requests per second while waiting on the database (<code>/io</code>, 64 users)</span></div>
+    <div class="figure"><span class="value">1.9×</span><span class="label">more requests per second on small indexed queries (<code>/customer</code>)</span></div>
+    <div class="figure"><span class="value">1.0×</span><span class="label">on heavy analytical queries (<code>/report</code>): Postgres is the limit</span></div>
+  </div>
+</header>
+
+<section id="model">
+  <div class="intro">
+    <span class="eyebrow">How they wait</span>
+    <h2>A blocked process vs a suspended fiber</h2>
+    <p class="muted">Each request runs a little PHP, waits 100 ms for Postgres, then runs a little more PHP. An FPM child can't do anything else during the wait, so 16 children means at most 16 requests in flight. An async worker parks the request's fiber, keeps serving other requests, and resumes it when the result arrives.</p>
+  </div>
+  <div class="panel">
+    <div class="legend">
+      <span><i class="key cpu"></i>PHP running on the CPU</span>
+      <span><i class="key wait"></i>Waiting for Postgres</span>
+    </div>
+    <div class="lanes-title"><i class="dot sync"></i>Sync: 4 of the 16 FPM children, first 450 ms</div>
+    <div class="chart" id="lanes-sync" role="img" aria-label="Four FPM child lanes, each handling one request at a time: a short CPU slice, a 100 millisecond wait, a short CPU slice, then the next request."></div>
+    <div class="lanes-title"><i class="dot async"></i>Async: 1 worker, 10 requests in flight at once</div>
+    <div class="chart" id="lanes-async" role="img" aria-label="One event-loop lane with short CPU slices, above it ten overlapping 100 millisecond waits all owned by the same process."></div>
+    <p class="small">Schematic, drawn to the measured 100 ms wait. CPU slices are widened so they're visible; the real ones are under 1 ms.</p>
+  </div>
+</section>
+
+<section id="ceiling">
+  <div class="intro">
+    <span class="eyebrow">Concurrency ceiling · <code>/io?ms=100</code></span>
+    <h2>Sync tops out at 16 requests in flight</h2>
+    <p class="muted">Throughput is in-flight requests ÷ 0.1 s. Up to 16 users the two servers are identical. Past that, sync stays at 152 req/s and every extra user just waits in the queue, so latency doubles each time users double. Async keeps going until it runs out of its 128 pooled database connections (2 workers × 64).</p>
+  </div>
+  <div class="panel">
+    <div class="legend">
+      <span><i class="key line sync"></i>Sync (PHP-FPM)</span>
+      <span><i class="key line async"></i>Async (AMPHP)</span>
+    </div>
+    <div class="two-up">
+      <div>
+        <h3>Requests per second</h3>
+        <div class="chart" id="chart-rps"></div>
+      </div>
+      <div>
+        <h3>Median latency (ms)</h3>
+        <div class="chart" id="chart-p50"></div>
+      </div>
+    </div>
+    <p class="small">10 s per point, k6 at constant concurrency. Each line ends where it stops scaling: sync at 16 FPM children, async at 128 pooled connections. Hover a column for the values.</p>
+  </div>
+</section>
+
+<section id="endpoints">
+  <div class="intro">
+    <span class="eyebrow">Every endpoint</span>
+    <h2>Where the gap opens and where it closes</h2>
+    <p class="muted">Requests per second for each workload, 20 s per run. Each panel has its own scale, because the endpoints differ by more than 1,000×. The chip shows async ÷ sync.</p>
+  </div>
+  <div class="legend">
+    <span><i class="key sync"></i>Sync</span>
+    <span><i class="key async"></i>Async</span>
+  </div>
+  <div class="multiples" id="multiples"></div>
+</section>
+
+<section id="regions">
+  <div class="intro">
+    <span class="eyebrow">Inside one request · <code>/regions</code></span>
+    <h2>Three queries in a row, or three at once</h2>
+    <p class="muted"><code>/regions</code> runs the heavy report for each of the three regions. Sync runs them one after another. Async starts all three and waits for the slowest, so one request finishes in about half the time.</p>
+  </div>
+  <div class="panel">
+    <div class="chart" id="chart-regions" role="img" aria-label="Sync: three report queries back to back, 873 milliseconds total. Async: the same three queries in parallel, 456 milliseconds total."></div>
+    <p class="small">Single request, nothing else running. Under load the speedup disappears: 8 users put 24 queries on Postgres with async instead of 8, and both servers end up at about 1 request per second, which is what Postgres can compute.</p>
+  </div>
+</section>
+
+<section id="postgres">
+  <div class="intro">
+    <span class="eyebrow">The real bottleneck · <code>/report</code></span>
+    <h2>Async can't make Postgres compute faster</h2>
+    <p class="muted">One report query takes about 300 ms of Postgres CPU. Running them side by side, measured inside Postgres with no PHP involved, 4 CPUs finish about 3 per second. Both servers reached 2.4 req/s on <code>/report</code>. Once the database is saturated, the execution model no longer matters.</p>
+  </div>
+  <div class="panel">
+    <h3>Time to finish N concurrent report queries (ms)</h3>
+    <div class="chart" id="chart-pg" role="img" aria-label="1 query: 308 ms. 4 concurrent: 582 ms. 16 concurrent: 5,332 ms."></div>
+  </div>
+</section>
+
+<section id="fixes">
+  <div class="intro">
+    <span class="eyebrow">Setup problems that changed the results</span>
+    <h2>Four things that skewed the numbers</h2>
+    <p class="muted">The first runs were wrong, and none of the causes was the execution model itself. These are easy to hit in real deployments too.</p>
+  </div>
+  <div class="tablewrap">
+    <table class="fixes">
+      <thead><tr><th class="l">Problem</th><th class="l">Symptom</th><th class="l">Fix</th></tr></thead>
+      <tbody>
+        <tr><td>PHPStreamServer never sets <code>TCP_NODELAY</code></td><td>Every keep-alive response waited ~40 ms for a delayed ACK: a 100 ms query measured 146 ms at any load</td><td>amphp/http-server with <code>withTcpNoDelay()</code>: p50 back to 106 ms</td></tr>
+        <tr><td>nginx <code>fastcgi_keep_conn</code> with 12 nginx workers</td><td>Idle connections stayed pinned to FPM children: sync <code>/io</code> reached 49 req/s instead of ~160</td><td>No FastCGI keep-alive, 1 nginx worker: 152 req/s</td></tr>
+        <tr><td>nginx caches the FPM container's IP</td><td>100% 502 errors after the FPM container was recreated</td><td>Re-resolve through Docker DNS (<code>resolve</code>)</td></tr>
+        <tr><td>Queries outlive the k6 run</td><td>The previous run's backlog kept FPM children busy: sync <code>/cpu</code> showed 0.3 req/s</td><td>Wait for Postgres to go idle before each run</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="data">
+  <div class="intro">
+    <span class="eyebrow">All numbers</span>
+    <h2>Raw results</h2>
+  </div>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Endpoint</th><th class="l">Server</th><th>Users</th><th>req/s</th><th>p50 ms</th><th>p95 ms</th><th>p99 ms</th><th>Errors</th></tr></thead>
+      <tbody id="results-body"></tbody>
+    </table>
+  </div>
+  <details>
+    <summary>Concurrency sweep on <code>/io?ms=100</code></summary>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Users</th><th>Sync req/s</th><th>Async req/s</th><th>Sync p50 ms</th><th>Async p50 ms</th></tr></thead>
+        <tbody id="sweep-body"></tbody>
+      </table>
+    </div>
+  </details>
+</section>
+
+<footer>
+  <p><b>Setup.</b> Sync: nginx → PHP-FPM 8.4, <code>pm = static</code>, 16 children, persistent PDO. Async: amphp/http-server on PHP 8.4 with ext-event, 2 forked workers, amphp/postgres pool of 64 per worker. Both containers limited to 2 CPUs and 1 GB. Postgres 17 on 4 CPUs, seeded with 5,000 products, 300,000 orders and 750,000 order items. Load from k6 0.57 in the same Compose network, 0% errors on every run.</p>
+  <p>Reproduce with <code>docker compose up -d --build --wait</code> and <code>./benchmark/run.sh</code>. Same machine for load and servers, so treat absolute numbers as relative.</p>
+</footer>
+
+</div>
+
+<div id="tip" hidden></div>
+
+<script>
+const RESULTS = [
+  { ep: '/io?ms=100', what: 'pg_sleep(0.1): pure waiting', vus: 64,
+    sync:  { rps: 152.4,  p50: 418.1,  p95: 424.5,   p99: 467.8 },
+    async: { rps: 593.6,  p50: 105.6,  p95: 111.8,   p99: 130.8 } },
+  { ep: '/customer', what: 'Small indexed join', vus: 64,
+    sync:  { rps: 1388.2, p50: 45.1,   p95: 79.1,    p99: 88.8 },
+    async: { rps: 2596.6, p50: 20.9,   p95: 51.6,    p99: 73.2 } },
+  { ep: '/report', what: 'Heavy CTE + window functions', vus: 16,
+    sync:  { rps: 2.4,    p50: 5675.0, p95: 10323.1, p99: 10552.8 },
+    async: { rps: 2.4,    p50: 5809.7, p95: 9942.0,  p99: 10144.5 } },
+  { ep: '/regions', what: 'Three heavy reports per request', vus: 8,
+    sync:  { rps: 1.0,    p50: 8066.2, p95: 8504.9,  p99: 8511.6 },
+    async: { rps: 0.8,    p50: 9383.0, p95: 16548.6, p99: 18608.8 } },
+  { ep: '/cpu?n=20000', what: '20,000 rounds of sha256, no I/O', vus: 64,
+    sync:  { rps: 248.0,  p50: 286.4,  p95: 387.0,   p99: 396.4 },
+    async: { rps: 578.3,  p50: 110.0,  p95: 137.3,   p99: 164.4 },
+    note: 'Not faster math: sync pays an nginx hop and per-request PHP startup across 16 processes on 2 CPUs.' },
+];
+const SWEEP = {
+  vus:   [8, 16, 32, 64, 128, 256],
+  sync:  { rps: [75.1, 149.1, 152.2, 151.9, 152.1, 152.1], p50: [106.0, 106.3, 208.5, 418.0, 835.6, 1676.4] },
+  async: { rps: [74.3, 148.7, 298.0, 595.0, 1139.1, 1169.5], p50: [105.8, 106.1, 105.8, 105.7, 109.1, 210.9] },
+};
+const LABEL = { sync: 'Sync', async: 'Async' };
+const fmt = (n, d = 0) => n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+const fmtRps = n => n < 10 ? fmt(n, 1) : fmt(n);
+const fmtMs = n => n >= 1000 ? fmt(n / 1000, 1) + ' s' : fmt(n) + ' ms';
+const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+
+/* ---------- tooltip ---------- */
+const tip = document.getElementById('tip');
+function showTip(html, x, y) {
+  tip.innerHTML = html; tip.hidden = false;
+  const r = tip.getBoundingClientRect();
+  let left = x + 14, top = y + 14;
+  if (left + r.width > innerWidth - 8) left = x - r.width - 14;
+  if (top + r.height > innerHeight - 8) top = y - r.height - 14;
+  tip.style.left = Math.max(8, left) + 'px'; tip.style.top = Math.max(8, top) + 'px';
+}
+function hideTip() { tip.hidden = true; }
+function bindTips(root, onEnter, onLeave) {
+  root.querySelectorAll('[data-tip]').forEach(el => {
+    const show = e => {
+      const r = el.getBoundingClientRect();
+      const x = e && e.clientX != null ? e.clientX : r.left + r.width / 2;
+      const y = e && e.clientY != null ? e.clientY : r.top;
+      showTip(el.dataset.tip, x, y); onEnter && onEnter(el);
+    };
+    el.addEventListener('pointerenter', show);
+    el.addEventListener('pointermove', show);
+    el.addEventListener('focus', () => show(null));
+    el.addEventListener('pointerleave', () => { hideTip(); onLeave && onLeave(el); });
+    el.addEventListener('blur', () => { hideTip(); onLeave && onLeave(el); });
+  });
+}
+const tipRow = (k, text) => `<div class="row"><i class="key ${k}"></i>${text}</div>`;
+
+function niceTicks(max, count = 4) {
+  const raw = max / count, mag = 10 ** Math.floor(Math.log10(raw));
+  const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s => s >= raw);
+  const ticks = []; for (let v = 0; v <= max + 1e-9; v += step) ticks.push(v);
+  if (ticks[ticks.length - 1] < max) ticks.push(ticks[ticks.length - 1] + step);
+  return ticks;
+}
+const rr = (x, y, w, h, r) => `<rect x="${x}" y="${y}" width="${Math.max(0, w)}" height="${h}" rx="${r}"`;
+/* horizontal bar: square at the baseline (left), 4px rounded data end */
+function hbar(x, y, w, h, cls) {
+  w = Math.max(w, 1); const r = Math.min(4, w, h / 2);
+  return `<path class="${cls}" d="M${x},${y}H${x + w - r}Q${x + w},${y} ${x + w},${y + r}V${y + h - r}Q${x + w},${y + h} ${x + w - r},${y + h}H${x}Z"/>`;
+}
+/* vertical column: square at the baseline (bottom), 4px rounded cap */
+function vbar(x, y, w, h, cls) {
+  h = Math.max(h, 1); const r = Math.min(4, h, w / 2);
+  return `<path class="${cls}" d="M${x},${y + h}V${y + r}Q${x},${y} ${x + r},${y}H${x + w - r}Q${x + w},${y} ${x + w},${y + r}V${y + h}Z"/>`;
+}
+
+/* ---------- 1. timing lanes ---------- */
+function lanesSync(el) {
+  const W = el.clientWidth, labelW = W < 480 ? 64 : 96, padR = 8, T = 450;
+  const x = t => labelW + (t / T) * (W - labelW - padR);
+  const laneH = 22, gap = 8, lanes = 4, axisH = 22;
+  const H = lanes * (laneH + gap) + axisH + 22;
+  const cpu = 6, wait = 100; // schematic ms
+  let s = `<svg viewBox="0 0 ${W} ${H}" height="${H}">`;
+  [0, 100, 200, 300, 400].forEach(t => {
+    s += `<line class="grid" x1="${x(t)}" x2="${x(t)}" y1="0" y2="${lanes * (laneH + gap)}"/>`;
+    s += `<text class="t-mono" x="${x(t)}" y="${lanes * (laneH + gap) + 14}" text-anchor="middle">${t} ms</text>`;
+  });
+  let req = 1;
+  for (let l = 0; l < lanes; l++) {
+    const y = l * (laneH + gap);
+    s += `<text class="t" x="0" y="${y + laneH / 2 + 4}">${W < 480 ? 'child ' : 'FPM child '}${l + 1}</text>`;
+    let t = l * 9;
+    for (let k = 0; t < T; k++) {
+      const id = req + k * lanes;
+      const parts = [[t, cpu, 'f-cpu'], [t + cpu, wait, 'wait-sync'], [t + cpu + wait, cpu, 'f-cpu']];
+      parts.forEach(([a, d, c]) => {
+        const xa = x(Math.min(a, T)), xb = x(Math.min(a + d, T));
+        if (xb > xa) s += `${rr(xa, y + (c === 'f-cpu' ? 0 : 3), xb - xa, c === 'f-cpu' ? laneH : laneH - 6, c === 'f-cpu' ? 1.5 : 3)} class="${c}"/>`;
+      });
+      const mid = x(Math.min(t + cpu + wait / 2, T - 10));
+      if (x(t + cpu + wait) - x(t + cpu) > 46 && t + cpu + 30 < T)
+        s += `<text class="t-mono" x="${mid}" y="${y + laneH / 2 + 4}" text-anchor="middle" style="fill:var(--ink)">req ${id}</text>`;
+      t += cpu * 2 + wait + 2;
+    }
+    req++;
+  }
+  const qy = lanes * (laneH + gap) + axisH;
+  s += `<text class="t" x="${labelW}" y="${qy + 12}">Requests 17 and up wait in the queue until a child is free.</text>`;
+  s += `</svg>`;
+  el.innerHTML = s;
+}
+function lanesAsync(el) {
+  const W = el.clientWidth, labelW = W < 480 ? 64 : 96, padR = 8, T = 450;
+  const x = t => labelW + (t / T) * (W - labelW - padR);
+  const rows = 10, rowH = 9, rowGap = 4, cpu = 6, wait = 100;
+  const top = rows * (rowH + rowGap);
+  const loopY = top + 10, loopH = 22;
+  const H = loopY + loopH + 26;
+  let s = `<svg viewBox="0 0 ${W} ${H}" height="${H}">`;
+  [0, 100, 200, 300, 400].forEach(t => {
+    s += `<line class="grid" x1="${x(t)}" x2="${x(t)}" y1="0" y2="${loopY + loopH}"/>`;
+    s += `<text class="t-mono" x="${x(t)}" y="${loopY + loopH + 16}" text-anchor="middle">${t} ms</text>`;
+  });
+  s += `<text class="t" x="0" y="${top / 2 - 2}">${W < 480 ? 'fibers' : 'Suspended'}</text>`;
+  if (W >= 480) s += `<text class="t" x="0" y="${top / 2 + 13}">fibers</text>`;
+  s += `<text class="t" x="0" y="${loopY + loopH / 2 + 4}">${W < 480 ? 'worker' : 'Event loop'}</text>`;
+  s += `${rr(x(0), loopY, x(T) - x(0), loopH, 3)} style="fill:var(--chip)"/>`;
+  const ticks = [];
+  for (let r = 0; r < rows; r++) {
+    const y = r * (rowH + rowGap);
+    let t = r * 11;
+    while (t < T) {
+      const a = t + cpu, b = Math.min(t + cpu + wait, T);
+      if (b > a) s += `${rr(x(a), y, x(b) - x(a), rowH, 2)} class="wait-async"/>`;
+      ticks.push(t, t + cpu + wait);
+      t += cpu * 2 + wait;
+    }
+  }
+  ticks.filter(t => t < T).forEach(t => {
+    s += `${rr(x(t), loopY + 3, Math.max(2, x(t + cpu) - x(t) - 1), loopH - 6, 1)} class="f-cpu"/>`;
+  });
+  s += `</svg>`;
+  el.innerHTML = s;
+}
+
+/* ---------- 2. sweep line charts ---------- */
+function lineChart(el, { key, yLabelFmt, refs = [], tipUnit }) {
+  const W = el.clientWidth, H = 250;
+  const m = { l: 46, r: 58, t: 14, b: 40 };
+  const xs = SWEEP.vus;
+  const series = ['sync', 'async'].map(k => ({ k, v: SWEEP[k][key] }));
+  const maxV = Math.max(...series.flatMap(s => s.v), ...refs.map(r => r.y));
+  const ticks = niceTicks(maxV, 4), yMax = ticks[ticks.length - 1];
+  const px = i => m.l + (i / (xs.length - 1)) * (W - m.l - m.r);
+  const py = v => m.t + (1 - v / yMax) * (H - m.t - m.b);
+  let s = `<svg viewBox="0 0 ${W} ${H}" height="${H}" role="img" aria-label="${key === 'rps' ? 'Requests per second' : 'Median latency'} by number of concurrent users for sync and async">`;
+  ticks.forEach(t => {
+    s += `<line class="grid" x1="${m.l}" x2="${W - m.r}" y1="${py(t)}" y2="${py(t)}"/>`;
+    s += `<text class="t-mono" x="${m.l - 8}" y="${py(t) + 4}" text-anchor="end">${yLabelFmt(t)}</text>`;
+  });
+  xs.forEach((v, i) => s += `<text class="t-mono" x="${px(i)}" y="${H - m.b + 18}" text-anchor="middle">${v}</text>`);
+  s += `<text class="t" x="${(m.l + W - m.r) / 2}" y="${H - 4}" text-anchor="middle">concurrent users</text>`;
+  refs.forEach(r => {
+    s += `<line class="ref s-${r.k}" x1="${m.l}" x2="${W - m.r}" y1="${py(r.y)}" y2="${py(r.y)}"/>`;
+    s += `<text class="t-mono" x="${m.l + 4}" y="${py(r.y) - 11}">${r.label}</text>`;
+  });
+  s += `<line class="cross" id="${el.id}-cross" x1="0" x2="0" y1="${m.t}" y2="${H - m.b}" visibility="hidden"/>`;
+  series.forEach(({ k, v }) => {
+    s += `<path class="ln s-${k}" d="${v.map((y, i) => `${i ? 'L' : 'M'}${px(i)},${py(y)}`).join('')}"/>`;
+    v.forEach((y, i) => s += `<circle cx="${px(i)}" cy="${py(y)}" r="4" class="f-${k}" style="stroke:var(--surface);stroke-width:2"/>`);
+    const last = v[v.length - 1];
+    s += `<text class="t-val" x="${px(v.length - 1) + 9}" y="${py(last) + 4}">${yLabelFmt(last, true)}</text>`;
+  });
+  /* end labels can collide on latency chart only if close; offset if needed */
+  const colW = (W - m.l - m.r) / (xs.length - 1);
+  xs.forEach((v, i) => {
+    const html = `<b>${v} concurrent users</b>` +
+      series.map(({ k, v: arr }) => tipRow(k + ' line', `${LABEL[k]}: ${tipUnit(arr[i])}`)).join('');
+    s += `<rect class="hit" tabindex="0" data-i="${i}" x="${px(i) - colW / 2}" y="${m.t}" width="${colW}" height="${H - m.t - m.b}" data-tip="${esc(html).replace(/"/g, '&quot;')}"/>`;
+  });
+  s += `</svg>`;
+  el.innerHTML = s;
+  const cross = el.querySelector('.cross');
+  bindTips(el, h => { const cx = px(+h.dataset.i); cross.setAttribute('x1', cx); cross.setAttribute('x2', cx); cross.setAttribute('visibility', 'visible'); },
+               () => cross.setAttribute('visibility', 'hidden'));
+}
+
+/* ---------- 3. small multiples ---------- */
+function multiples(root) {
+  root.innerHTML = RESULTS.map((r, idx) => {
+    const ratio = r.async.rps / r.sync.rps;
+    const chip = ratio >= 1.15 ? `${fmt(ratio, 1)}× async` : ratio <= 0.87 ? `${fmt(1 / ratio, 1)}× sync` : 'tie';
+    return `<article class="multiple">
+      <header><h3>${r.ep}</h3><span class="chip ${ratio >= 1.15 ? 'win' : ''}">${chip}</span></header>
+      <div class="what">${r.what} · ${r.vus} users</div>
+      <div class="chart" id="mult-${idx}"></div>
+      <div class="p50">Median latency: sync ${fmtMs(r.sync.p50)}, async ${fmtMs(r.async.p50)}</div>
+      ${r.note ? `<div class="small">${r.note}</div>` : ''}
+    </article>`;
+  }).join('');
+  RESULTS.forEach((r, idx) => drawMultiple(document.getElementById(`mult-${idx}`), r));
+}
+function drawMultiple(el, r) {
+  const W = el.clientWidth, labelW = 46, valW = 54, barH = 20, gap = 8;
+  const H = barH * 2 + gap + 2;
+  const max = Math.max(r.sync.rps, r.async.rps);
+  const scale = v => (v / max) * (W - labelW - valW);
+  let s = `<svg viewBox="0 0 ${W} ${H}" height="${H}" role="img" aria-label="${r.ep}: sync ${fmtRps(r.sync.rps)} requests per second, async ${fmtRps(r.async.rps)}">`;
+  s += `<line class="axis" x1="${labelW}" x2="${labelW}" y1="0" y2="${H}"/>`;
+  ['sync', 'async'].forEach((k, i) => {
+    const y = i * (barH + gap) + 1, w = scale(r[k].rps);
+    s += `<text class="t" x="0" y="${y + barH / 2 + 4}">${LABEL[k]}</text>`;
+    s += hbar(labelW + 1, y, w, barH, `f-${k}`);
+    s += `<text class="t-val" x="${labelW + w + 7}" y="${y + barH / 2 + 4}">${fmtRps(r[k].rps)}</text>`;
+    const html = `<b>${r.ep} · ${LABEL[k]}</b>${tipRow(k, `${fmtRps(r[k].rps)} req/s`)}<div>p50 ${fmtMs(r[k].p50)} · p95 ${fmtMs(r[k].p95)} · p99 ${fmtMs(r[k].p99)}</div>`;
+    s += `<rect class="hit" tabindex="0" x="0" y="${y - 3}" width="${W}" height="${barH + 6}" data-tip="${esc(html).replace(/"/g, '&quot;')}"/>`;
+  });
+  s += `</svg>`;
+  el.innerHTML = s;
+  bindTips(el);
+}
+
+/* ---------- 4. /regions timeline ---------- */
+function regions(el) {
+  const W = el.clientWidth, labelW = W < 480 ? 52 : 70, padR = 64, T = 900;
+  const x = t => labelW + (t / T) * (W - labelW - padR);
+  const barH = 16, gap = 4;
+  const groups = [
+    { k: 'sync', label: 'Sync', total: 873, bars: [[0, 291], [291, 582], [582, 873]] },
+    { k: 'async', label: 'Async', total: 456, bars: [[0, 430], [0, 456], [0, 441]] },
+  ];
+  const groupH = barH * 3 + gap * 2, groupGap = 22;
+  const H = groups.length * groupH + groupGap + 34;
+  let s = `<svg viewBox="0 0 ${W} ${H}" height="${H}">`;
+  const plotB = groups.length * groupH + groupGap;
+  [0, 200, 400, 600, 800].forEach(t => {
+    s += `<line class="grid" x1="${x(t)}" x2="${x(t)}" y1="0" y2="${plotB}"/>`;
+    s += `<text class="t-mono" x="${x(t)}" y="${plotB + 16}" text-anchor="middle">${t} ms</text>`;
+  });
+  const regionsNames = ['North America', 'Europe', 'Asia'];
+  groups.forEach((g, gi) => {
+    const y0 = gi * (groupH + groupGap);
+    s += `<text class="t-strong" x="0" y="${y0 + groupH / 2 + 4}">${g.label}</text>`;
+    g.bars.forEach(([a, b], i) => {
+      const y = y0 + i * (barH + gap);
+      s += `${rr(x(a) + (g.k === 'sync' && i ? 1 : 0), y, x(b) - x(a) - (g.k === 'sync' && i ? 2 : 0), barH, 3)} class="f-${g.k}"/>`;
+      if (x(b) - x(a) > 96) s += `<text x="${x(a) + 8}" y="${y + barH / 2 + 4}" style="fill:#fff;font:500 11px var(--font-body)">${regionsNames[i]}</text>`;
+    });
+    s += `<text class="t-val" x="${x(g.total) + 8}" y="${y0 + groupH / 2 + 4}">${g.total} ms</text>`;
+  });
+  s += `</svg>`;
+  el.innerHTML = s;
+}
+
+/* ---------- 5. Postgres saturation ---------- */
+function pgChart(el) {
+  const data = [[1, 308], [4, 582], [16, 5332]];
+  const W = el.clientWidth, H = 210, m = { l: 52, r: 12, t: 20, b: 40 };
+  const ticks = niceTicks(5332, 4), yMax = ticks[ticks.length - 1];
+  const band = (W - m.l - m.r) / data.length, bw = Math.min(24, band * 0.5);
+  const py = v => m.t + (1 - v / yMax) * (H - m.t - m.b);
+  let s = `<svg viewBox="0 0 ${W} ${H}" height="${H}">`;
+  ticks.forEach(t => {
+    s += `<line class="grid" x1="${m.l}" x2="${W - m.r}" y1="${py(t)}" y2="${py(t)}"/>`;
+    s += `<text class="t-mono" x="${m.l - 8}" y="${py(t) + 4}" text-anchor="end">${fmt(t)}</text>`;
+  });
+  data.forEach(([n, ms], i) => {
+    const cx = m.l + band * i + band / 2;
+    s += vbar(cx - bw / 2, py(ms), bw, py(0) - py(ms), 'f-db');
+    s += `<text class="t-val" x="${cx}" y="${py(ms) - 7}" text-anchor="middle">${fmt(ms)}</text>`;
+    s += `<text class="t-mono" x="${cx}" y="${H - m.b + 18}" text-anchor="middle">${n} ${n === 1 ? 'query' : 'at once'}</text>`;
+    const html = `<b>${n} concurrent report ${n === 1 ? 'query' : 'queries'}</b><div>${fmt(ms)} ms to finish all</div><div>${fmt(n / (ms / 1000), 1)} queries/s</div>`;
+    s += `<rect class="hit" tabindex="0" x="${cx - band / 2}" y="${m.t}" width="${band}" height="${H - m.t - m.b}" data-tip="${esc(html).replace(/"/g, '&quot;')}"/>`;
+  });
+  s += `<line class="axis" x1="${m.l}" x2="${W - m.r}" y1="${py(0)}" y2="${py(0)}"/>`;
+  s += `</svg>`;
+  el.innerHTML = s;
+  bindTips(el);
+}
+
+/* ---------- tables ---------- */
+document.getElementById('results-body').innerHTML = RESULTS.flatMap(r => ['sync', 'async'].map(k =>
+  `<tr><td class="mono">${k === 'sync' ? r.ep : ''}</td><td class="l"><i class="dot ${k}"></i>${LABEL[k]}</td><td>${r.vus}</td><td>${fmtRps(r[k].rps)}</td><td>${fmt(r[k].p50, 1)}</td><td>${fmt(r[k].p95, 1)}</td><td>${fmt(r[k].p99, 1)}</td><td>0.00%</td></tr>`)).join('');
+document.getElementById('sweep-body').innerHTML = SWEEP.vus.map((v, i) =>
+  `<tr><td>${v}</td><td>${fmt(SWEEP.sync.rps[i], 1)}</td><td>${fmt(SWEEP.async.rps[i], 1)}</td><td>${fmt(SWEEP.sync.p50[i], 1)}</td><td>${fmt(SWEEP.async.p50[i], 1)}</td></tr>`).join('');
+
+/* ---------- render + resize ---------- */
+function renderAll() {
+  hideTip();
+  lanesSync(document.getElementById('lanes-sync'));
+  lanesAsync(document.getElementById('lanes-async'));
+  lineChart(document.getElementById('chart-rps'), {
+    key: 'rps', yLabelFmt: v => fmt(v), tipUnit: v => `${fmt(v, 1)} req/s`,
+    refs: [{ k: 'async', y: 1280, label: '128 connections ÷ 0.1 s' }, { k: 'sync', y: 160, label: '16 children ÷ 0.1 s' }],
+  });
+  lineChart(document.getElementById('chart-p50'), {
+    key: 'p50', yLabelFmt: v => fmt(v), tipUnit: v => `${fmt(v, 1)} ms`,
+  });
+  multiples(document.getElementById('multiples'));
+  regions(document.getElementById('chart-regions'));
+  pgChart(document.getElementById('chart-pg'));
+}
+renderAll();
+let lastW = document.documentElement.clientWidth, raf = 0;
+new ResizeObserver(() => {
+  const w = document.documentElement.clientWidth;
+  if (w === lastW) return; lastW = w;
+  cancelAnimationFrame(raf); raf = requestAnimationFrame(renderAll);
+}).observe(document.documentElement);
+document.fonts && document.fonts.ready.then(renderAll);
+</script>
