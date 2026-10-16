@@ -1,0 +1,101 @@
+# Sync vs async PHP benchmark.
+#
+#   docker compose up -d --build        # postgres + both servers
+#   ./benchmark/run.sh                  # k6 load tests against both
+#
+# Both PHP servers get the same CPU and memory limits so the comparison is
+# about the execution model, not the hardware each one is given.
+
+x-php-env: &php-env
+  DB_HOST: postgres
+  DB_PORT: 5432
+  DB_NAME: analytics_db
+  DB_USER: user
+  DB_PASSWORD: pass
+
+x-app-limits: &app-limits
+  cpus: ${APP_CPUS:-2}
+  mem_limit: ${APP_MEM:-1g}
+
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: analytics_db
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: pass
+      SEED_PRODUCTS: ${SEED_PRODUCTS:-5000}
+      SEED_ORDERS: ${SEED_ORDERS:-300000}
+    command:
+      - postgres
+      - -c
+      - max_connections=300
+      - -c
+      - shared_buffers=512MB
+      - -c
+      - work_mem=16MB
+    volumes:
+      - ./docker/postgres:/docker-entrypoint-initdb.d:ro
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "${PG_PORT:-5432}:5432"
+    cpus: ${DB_CPUS:-4}
+    shm_size: 1g
+    healthcheck:
+      # TCP check: only passes once the init/seed script has finished.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U user -d analytics_db"]
+      interval: 2s
+      timeout: 3s
+      retries: 120
+
+  # --- Synchronous: nginx -> PHP-FPM (static pool) -> PDO ----------------
+  sync-fpm:
+    build:
+      context: .
+      dockerfile: docker/sync/Dockerfile
+    environment:
+      <<: *php-env
+      FPM_CHILDREN: ${FPM_CHILDREN:-16}
+      PDO_PERSISTENT: ${PDO_PERSISTENT:-1}
+    <<: *app-limits
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  sync:
+    image: nginx:1.27-alpine
+    volumes:
+      - ./docker/sync/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "${SYNC_PORT:-8081}:8080"
+    cpus: 1
+    depends_on:
+      - sync-fpm
+
+  # --- Asynchronous: PHPStreamServer (AMPHP event loop) -> amphp/postgres -
+  async:
+    build:
+      context: .
+      dockerfile: docker/async/Dockerfile
+    environment:
+      <<: *php-env
+      ASYNC_WORKERS: ${ASYNC_WORKERS:-2}
+      DB_POOL_SIZE: ${DB_POOL_SIZE:-64}
+    <<: *app-limits
+    ports:
+      - "${ASYNC_PORT:-8082}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # --- Load generator (run on demand: see benchmark/run.sh) -------------
+  k6:
+    image: grafana/k6:0.57.0
+    profiles: ["bench"]
+    volumes:
+      - ./benchmark/k6:/scripts:ro
+      - ./benchmark/results:/results
+    cpus: ${K6_CPUS:-2}
+
+volumes:
+  pgdata:

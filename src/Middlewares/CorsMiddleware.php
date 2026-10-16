@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Middleware;
+namespace Asyncopath\Middlewares;
 
 use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\ResponseInterface;
@@ -28,6 +28,7 @@ class CorsMiddleware implements MiddlewareInterface
         // 1. Intercept Preflight (OPTIONS) Requests
         if ($request->getMethod() === 'OPTIONS' && $request->hasHeader('Access-Control-Request-Method')) {
             $response = $this->responseFactory->createResponse(204); // 204 No Content
+
             return $this->addCorsHeaders($response, $origin);
         }
 
@@ -47,7 +48,7 @@ class CorsMiddleware implements MiddlewareInterface
         // Resolve Allowed Origin
         $corsOrigin = '*';
         if (in_array($origin, $this->allowedOrigins, true) || in_array('*', $this->allowedOrigins, true)) {
-            $corsOrigin = \in_array('*', $this->allowedOrigins, true) && !$this->allowCredentials ? '*' : $origin;
+            $corsOrigin = \in_array('*', $this->allowedOrigins, true) && ! $this->allowCredentials ? '*' : $origin;
         }
 
         $response = $response

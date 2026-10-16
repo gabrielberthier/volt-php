@@ -2,14 +2,12 @@
 
 namespace Asyncopath\Factories;
 
-use Asyncopath\Router;
 use Amp\ByteStream;
+use Amp\Http\Server\DefaultErrorHandler;
 use Amp\Log\ConsoleFormatter;
 use Amp\Log\StreamHandler;
+use Asyncopath\Router;
 use Monolog\Logger;
-use Amp\Http\Server\DefaultErrorHandler;
-
-
 
 class RouterFactory
 {
@@ -20,7 +18,7 @@ class RouterFactory
 
         $logger = new Logger('main');
         $logger->pushHandler($handler);
-        $errorHandler = new DefaultErrorHandler();
+        $errorHandler = new DefaultErrorHandler;
         $router = new Router($logger, $errorHandler);
 
         return $router;

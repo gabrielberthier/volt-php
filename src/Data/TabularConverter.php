@@ -6,11 +6,11 @@ class TabularConverter
 {
     public function walkTuple(array $rows, string $class)
     {
-        $parser = new DtoParser();
+        $parser = new DtoParser;
         $data = $parser->parse($class);
         $res = $this->walk($rows, $data);
-        echo "After parsing in foreach: " . PHP_EOL;
-        echo json_encode($res) . PHP_EOL;
+        echo 'After parsing in foreach: '.PHP_EOL;
+        echo json_encode($res).PHP_EOL;
     }
 
     private function walk(array $rows, array $data)
@@ -18,7 +18,7 @@ class TabularConverter
         ['props' => $props, 'join' => $join] = $data;
 
         $result = [];
-        $sqlJoin = new SqlJoin();
+        $sqlJoin = new SqlJoin;
         if ($join) {
             foreach ($join as $key => $value) {
                 $meta = $join[$key]['meta'] ?? [];
@@ -37,7 +37,7 @@ class TabularConverter
                     }
                 }
             }
-        } 
+        }
 
         return $result;
     }

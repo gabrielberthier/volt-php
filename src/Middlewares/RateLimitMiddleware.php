@@ -4,18 +4,21 @@ declare(strict_types=1);
 
 namespace Asyncopath\Middlewares;
 
+use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use Psr\SimpleCache\CacheInterface;
-use Psr\Http\Message\ResponseFactoryInterface;
 
 class RateLimitMiddleware implements MiddlewareInterface
 {
     private CacheInterface $cache;
+
     private ResponseFactoryInterface $responseFactory;
+
     private int $maxRequests;
+
     private int $timeWindowSeconds;
 
     public function __construct(
@@ -35,7 +38,7 @@ class RateLimitMiddleware implements MiddlewareInterface
         // 1. Identify the client (using IP address in this basic example)
         $serverParams = $request->getServerParams();
         $ip = $serverParams['REMOTE_ADDR'] ?? 'unknown';
-        $cacheKey = "rate_limit_" . md5($ip);
+        $cacheKey = 'rate_limit_'.md5($ip);
 
         // 2. Get current request count from cache
         $currentRequests = (int) $this->cache->get($cacheKey, 0);
@@ -45,7 +48,7 @@ class RateLimitMiddleware implements MiddlewareInterface
             // Early Return: Block the request and return a 429 Too Many Requests
             $response = $this->responseFactory->createResponse(429);
             $response->getBody()->write('Too Many Requests');
-            
+
             return $response
                 ->withHeader('Retry-After', (string) $this->timeWindowSeconds)
                 ->withHeader('X-RateLimit-Limit', (string) $this->maxRequests)
@@ -60,7 +63,7 @@ class RateLimitMiddleware implements MiddlewareInterface
 
         // 6. Append rate limit headers to the successful outgoing response
         $remaining = $this->maxRequests - ($currentRequests + 1);
-        
+
         return $response
             ->withHeader('X-RateLimit-Limit', (string) $this->maxRequests)
             ->withHeader('X-RateLimit-Remaining', (string) $remaining);

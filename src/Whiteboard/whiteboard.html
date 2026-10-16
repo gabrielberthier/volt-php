@@ -1,0 +1,534 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Whiteboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/drawably@0.4.2/style.css">
+<style>
+  :root {
+    --desk: #e8e4da;
+    --paper: #fffdf7;
+    --dot: #dcd6c8;
+    --ink: #1f1d1a;
+    --muted: #6b665c;
+    --drawably-stroke: #2b2a27;
+    color-scheme: light;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--desk);
+    color: var(--ink);
+    font: 14px/1.4 Inter, system-ui, sans-serif;
+    overflow: hidden;
+  }
+
+  #stage { position: fixed; inset: 0; touch-action: none; cursor: crosshair; }
+  #paper {
+    position: absolute;
+    background-color: var(--paper);
+    background-image: radial-gradient(var(--dot) 1px, transparent 1.2px);
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.06), 0 8px 30px rgb(0 0 0 / 0.08);
+    border-radius: 6px;
+  }
+  #stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  #stage.offline { cursor: not-allowed; }
+
+  .toolbar {
+    position: fixed; top: 16px; left: 16px; z-index: 5;
+    width: 228px; max-height: calc(100% - 32px); overflow: auto;
+    padding: 16px; display: grid; gap: 14px;
+    background: var(--paper);
+  }
+  .toolbar header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .toolbar h1 { font-size: 15px; font-weight: 600; margin: 0; }
+  .toolbar hr { border: 0; height: 8px; margin: 0; }
+  .group { border: 0; margin: 0; padding: 0; display: grid; gap: 8px; }
+  .group legend { padding: 0; margin-bottom: 8px; font-size: 12px; color: var(--muted); }
+  .opt { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
+  .tools { display: grid; gap: 6px; }
+  .inks { display: flex; flex-wrap: wrap; gap: 10px; }
+  .ink-name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .size-wrap select { font: inherit; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+  .actions button { font: inherit; padding: 6px 12px; background: transparent; border: 0; cursor: pointer; }
+  .status { font-size: 12px; padding: 2px 8px; white-space: nowrap; }
+  .peers { display: flex; flex-wrap: wrap; gap: 6px; }
+  .peer { font-size: 12px; padding: 2px 8px; }
+  .hint { font-size: 12px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 10px; }
+  kbd { font: 500 11px ui-monospace, monospace; padding: 1px 6px; }
+
+  .cursor {
+    position: absolute; z-index: 4; pointer-events: none;
+    transform: translate(-2px, -2px);
+    transition: opacity 300ms;
+  }
+  .cursor span {
+    position: absolute; left: 14px; top: 14px; white-space: nowrap;
+    font-size: 11px; font-weight: 500; color: #fff; padding: 1px 6px; border-radius: 4px;
+  }
+  .cursor.idle { opacity: 0; }
+  body.hide-cursors .cursor { display: none; }
+
+  @media (max-width: 640px) {
+    .toolbar { top: auto; bottom: 12px; left: 12px; right: 12px; width: auto; max-height: 45%; }
+  }
+  @media (prefers-reduced-motion: reduce) { .cursor { transition: none; } }
+</style>
+</head>
+<body>
+
+<main id="stage" class="offline" aria-label="Shared whiteboard">
+  <div id="paper"></div>
+  <canvas id="base"></canvas>
+  <canvas id="live"></canvas>
+  <div id="cursors"></div>
+</main>
+
+<aside class="toolbar" id="toolbar">
+  <header>
+    <h1>Whiteboard</h1>
+    <span class="status" id="status">Connecting</span>
+  </header>
+
+  <fieldset class="group">
+    <legend>Tool</legend>
+    <div class="tools">
+      <label class="opt"><span class="radio"><input type="radio" name="tool" value="pen" checked></span>Pen</label>
+      <label class="opt"><span class="radio"><input type="radio" name="tool" value="marker"></span>Marker</label>
+      <label class="opt"><span class="radio"><input type="radio" name="tool" value="eraser"></span>Eraser</label>
+    </div>
+  </fieldset>
+
+  <fieldset class="group">
+    <legend>Ink</legend>
+    <div class="inks" id="inks"></div>
+  </fieldset>
+
+  <div class="size-wrap" id="size-wrap">
+    <select id="size" aria-label="Stroke size">
+      <option value="2">Fine</option>
+      <option value="4" selected>Medium</option>
+      <option value="9">Bold</option>
+    </select>
+  </div>
+
+  <div class="actions">
+    <button type="button" id="undo">Undo</button>
+    <button type="button" id="clear">Clear</button>
+    <button type="button" id="save">Save PNG</button>
+  </div>
+
+  <label class="opt"><span id="cursor-toggle"><input type="checkbox" checked></span>Show cursors</label>
+
+  <hr id="rule">
+
+  <div class="group">
+    <span class="hint" id="online-label">Online</span>
+    <div class="peers" id="peers"></div>
+  </div>
+
+  <div class="hint">
+    <span><kbd>P</kbd> pen</span><span><kbd>M</kbd> marker</span><span><kbd>E</kbd> eraser</span><span><kbd>Ctrl Z</kbd> undo</span>
+  </div>
+</aside>
+
+<script type="module">
+import {
+  drawablyBadge, drawablyButton, drawablyCard, drawablyDivider, drawablyKbd,
+  drawablyRadio, drawablySelect, drawablyToggle,
+} from "https://cdn.jsdelivr.net/npm/drawably@0.4.2/dist/index.js";
+
+const INKS = [
+  ["#1f1d1a", "Graphite"], ["#2563eb", "Blue"], ["#d12724", "Red"],
+  ["#188a42", "Green"], ["#ea7a12", "Orange"], ["#7c3aed", "Violet"],
+];
+const TOOL = {
+  pen:    { width: 1,   alpha: 1,    op: "source-over" },
+  marker: { width: 3.5, alpha: 0.35, op: "source-over" },
+  eraser: { width: 5,   alpha: 1,    op: "destination-out" },
+};
+const MAX_POINTS_PER_MESSAGE = 512;
+
+/* ---------- Drawably chrome ---------- */
+const inksEl = document.getElementById("inks");
+INKS.forEach(([hex, name], i) => {
+  inksEl.insertAdjacentHTML("beforeend",
+    `<label class="opt" title="${name}"><span class="radio ink" data-color="${hex}"><input type="radio" name="ink" value="${hex}" ${i === 0 ? "checked" : ""}></span><span class="ink-name">${name}</span></label>`);
+});
+drawablyCard(document.getElementById("toolbar"));
+document.querySelectorAll(".radio").forEach(el => drawablyRadio(el, el.dataset.color ? { stroke: el.dataset.color, width: 2.5 } : {}));
+drawablySelect(document.getElementById("size-wrap"));
+drawablyToggle(document.getElementById("cursor-toggle"));
+drawablyDivider(document.getElementById("rule"));
+document.querySelectorAll("kbd").forEach(el => drawablyKbd(el));
+drawablyButton(document.getElementById("undo"));
+drawablyButton(document.getElementById("clear"), { tone: "danger" });
+const saveBtn = drawablyButton(document.getElementById("save"), { variant: "solid" });
+const statusEl = document.getElementById("status");
+const statusBadge = drawablyBadge(statusEl, { variant: "scribble" });
+
+function setStatus(text) {
+  if (statusEl.textContent === text) return;
+  statusEl.textContent = text;
+  statusBadge.resketch();
+}
+
+/* ---------- state ---------- */
+const stage = document.getElementById("stage");
+const paper = document.getElementById("paper");
+const base = document.getElementById("base");
+const live = document.getElementById("live");
+const baseCtx = base.getContext("2d");
+const liveCtx = live.getContext("2d");
+const cursorsEl = document.getElementById("cursors");
+
+let board = { width: 1600, height: 1000 };
+let view = { scale: 1, x: 0, y: 0, dpr: 1 };
+let me = null;
+let ws = null;
+let retry = 0;
+const strokes = new Map();   // key -> { id, by, tool, color, size, points, done }
+const peers = new Map();     // id -> { id, name, color, badge }
+const cursors = new Map();   // id -> { el, timer }
+
+const tool = () => document.querySelector('input[name="tool"]:checked').value;
+const ink = () => document.querySelector('input[name="ink"]:checked').value;
+const size = () => Number(document.getElementById("size").value);
+
+/* ---------- view: fit the fixed board into the window ---------- */
+function layout() {
+  const w = stage.clientWidth, h = stage.clientHeight;
+  const pad = 24;
+  // Keep the paper clear of the floating toolbar when it sits on the left.
+  const bar = document.getElementById("toolbar").getBoundingClientRect();
+  const left = w > 640 ? bar.right : 0;
+  view.scale = Math.min((w - left - pad * 2) / board.width, (h - pad * 2) / board.height);
+  view.x = left + (w - left - board.width * view.scale) / 2;
+  view.y = (h - board.height * view.scale) / 2;
+  view.dpr = window.devicePixelRatio || 1;
+  Object.assign(paper.style, {
+    left: view.x + "px", top: view.y + "px",
+    width: board.width * view.scale + "px", height: board.height * view.scale + "px",
+    backgroundSize: `${24 * view.scale}px ${24 * view.scale}px`,
+  });
+  for (const c of [base, live]) {
+    c.width = Math.round(w * view.dpr);
+    c.height = Math.round(h * view.dpr);
+  }
+  renderBase();
+  renderLive();
+  for (const [id] of cursors) hideCursor(id);
+}
+
+/* Map board coordinates onto the canvas and clip to the paper. */
+function prepare(ctx, { clear = true } = {}) {
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  if (clear) ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+  ctx.restore(); ctx.save();
+  const s = view.dpr * view.scale;
+  ctx.setTransform(s, 0, 0, s, view.dpr * view.x, view.dpr * view.y);
+  ctx.beginPath();
+  ctx.rect(0, 0, board.width, board.height);
+  ctx.clip();
+}
+
+const toBoard = (clientX, clientY) => {
+  const r = stage.getBoundingClientRect();
+  return [
+    Math.max(0, Math.min(board.width, (clientX - r.left - view.x) / view.scale)),
+    Math.max(0, Math.min(board.height, (clientY - r.top - view.y) / view.scale)),
+  ];
+};
+const toScreen = (x, y) => [view.x + x * view.scale, view.y + y * view.scale];
+
+/* ---------- drawing ---------- */
+function strokeStyle(ctx, s) {
+  const t = TOOL[s.tool] ?? TOOL.pen;
+  ctx.globalCompositeOperation = t.op;
+  ctx.globalAlpha = t.alpha;
+  ctx.strokeStyle = ctx.fillStyle = s.color;
+  ctx.lineWidth = s.size * t.width;
+  ctx.lineCap = ctx.lineJoin = "round";
+}
+
+/* Smooth path: quadratic curves through the midpoints between samples. */
+function drawStroke(ctx, s, from = 0) {
+  const p = s.points;
+  if (!p.length) return;
+  ctx.save();
+  strokeStyle(ctx, s);
+  if (p.length === 1) {
+    ctx.beginPath();
+    ctx.arc(p[0][0], p[0][1], ctx.lineWidth / 2, 0, Math.PI * 2);
+    ctx.fill();
+  } else {
+    const start = Math.max(0, from - 1);
+    ctx.beginPath();
+    ctx.moveTo(p[start][0], p[start][1]);
+    for (let i = start + 1; i < p.length - 1; i++) {
+      const mx = (p[i][0] + p[i + 1][0]) / 2, my = (p[i][1] + p[i + 1][1]) / 2;
+      ctx.quadraticCurveTo(p[i][0], p[i][1], mx, my);
+    }
+    const last = p[p.length - 1];
+    ctx.lineTo(last[0], last[1]);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/* Finished strokes and erasers draw on the base layer; erasers have to cut
+   into it as they go. In-progress pens and markers draw on the live layer, so
+   a translucent marker isn't darkened where its segments overlap. */
+const onBase = s => s.done || s.tool === "eraser";
+
+function renderBase() {
+  prepare(baseCtx);
+  for (const s of strokes.values()) if (onBase(s)) drawStroke(baseCtx, s);
+}
+
+let liveQueued = false;
+function renderLive() {
+  liveQueued = false;
+  prepare(liveCtx);
+  for (const s of strokes.values()) if (!onBase(s)) drawStroke(liveCtx, s);
+}
+function queueLive() {
+  if (!liveQueued) { liveQueued = true; requestAnimationFrame(renderLive); }
+}
+
+function appendPoints(s, points) {
+  const from = s.points.length;
+  s.points.push(...points);
+  if (s.tool === "eraser") {
+    prepare(baseCtx, { clear: false });
+    drawStroke(baseCtx, s, from);
+  } else {
+    queueLive();
+  }
+}
+
+function finish(s) {
+  if (s.done) return;
+  s.done = true;
+  if (s.tool !== "eraser") {
+    prepare(baseCtx, { clear: false });
+    drawStroke(baseCtx, s);
+  }
+  queueLive();
+}
+
+/* ---------- local input ---------- */
+let current = null;
+let pending = [];
+let localSeq = 0;
+let lastCursorSent = 0;
+
+stage.addEventListener("pointerdown", e => {
+  if (!me || ws?.readyState !== WebSocket.OPEN || (e.pointerType === "mouse" && e.button !== 0)) return;
+  stage.setPointerCapture(e.pointerId);
+  const id = "s" + (++localSeq).toString(36) + Math.random().toString(36).slice(2, 6);
+  current = { id, key: `${me.id}-${id}`, by: me.id, tool: tool(), color: ink(), size: size(), points: [], done: false };
+  strokes.set(current.key, current);
+  addLocalPoints([toBoard(e.clientX, e.clientY)]);
+});
+
+stage.addEventListener("pointermove", e => {
+  const now = performance.now();
+  if (me && ws?.readyState === WebSocket.OPEN && now - lastCursorSent > 40) {
+    const [x, y] = toBoard(e.clientX, e.clientY);
+    send({ type: "cursor", x: Math.round(x), y: Math.round(y) });
+    lastCursorSent = now;
+  }
+  if (!current) return;
+  const events = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
+  addLocalPoints(events.map(ev => toBoard(ev.clientX, ev.clientY)));
+});
+
+function endStroke() {
+  if (!current) return;
+  flush();
+  send({ type: "end", id: current.id });
+  finish(current);
+  current = null;
+}
+stage.addEventListener("pointerup", endStroke);
+stage.addEventListener("pointercancel", endStroke);
+
+function addLocalPoints(points) {
+  const p = current.points;
+  const fresh = points
+    .map(([x, y]) => [Math.round(x * 10) / 10, Math.round(y * 10) / 10])
+    .filter(pt => {
+      const prev = p.length ? p[p.length - 1] : null;
+      return !prev || Math.hypot(pt[0] - prev[0], pt[1] - prev[1]) >= 0.8;
+    });
+  if (!fresh.length) return;
+  pending.push(...fresh);
+  appendPoints(current, fresh);
+  queueFlush();
+}
+
+/* Batch points into one message per frame instead of one per pointer event. */
+let flushQueued = false;
+function queueFlush() {
+  if (!flushQueued) { flushQueued = true; requestAnimationFrame(flush); }
+}
+function flush() {
+  flushQueued = false;
+  while (current && pending.length) {
+    const points = pending.splice(0, MAX_POINTS_PER_MESSAGE);
+    send({ type: "draw", id: current.id, tool: current.tool, color: current.color, size: current.size, points });
+  }
+}
+
+/* ---------- toolbar actions ---------- */
+function undo() { send({ type: "undo" }); }
+document.getElementById("undo").addEventListener("click", undo);
+document.getElementById("clear").addEventListener("click", () => {
+  if (confirm("Clear the board for everyone?")) send({ type: "clear" });
+});
+document.getElementById("save").addEventListener("click", () => {
+  const out = document.createElement("canvas");
+  out.width = board.width; out.height = board.height;
+  const ctx = out.getContext("2d");
+  ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--paper").trim();
+  ctx.fillRect(0, 0, out.width, out.height);
+  const layer = document.createElement("canvas");
+  layer.width = board.width; layer.height = board.height;
+  const lctx = layer.getContext("2d");
+  for (const s of strokes.values()) drawStroke(lctx, s);
+  ctx.drawImage(layer, 0, 0);
+  out.toBlob(blob => {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `whiteboard-${new Date().toISOString().slice(0, 19).replace(/:/g, "-")}.png`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    saveBtn.setState("success");
+    setTimeout(() => saveBtn.setState("idle"), 1500);
+  });
+});
+document.querySelector("#cursor-toggle input").addEventListener("change", e => {
+  document.body.classList.toggle("hide-cursors", !e.target.checked);
+});
+document.addEventListener("keydown", e => {
+  if (e.target.closest("input, select, textarea")) return;
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") { e.preventDefault(); undo(); return; }
+  const pick = { p: "pen", m: "marker", e: "eraser" }[e.key.toLowerCase()];
+  if (pick && !e.ctrlKey && !e.metaKey) document.querySelector(`input[name="tool"][value="${pick}"]`).click();
+});
+
+/* ---------- presence ---------- */
+const peersEl = document.getElementById("peers");
+function renderPeers() {
+  for (const p of peers.values()) p.badge?.destroy();
+  peersEl.textContent = "";
+  for (const p of peers.values()) {
+    const el = document.createElement("span");
+    el.className = "peer";
+    el.textContent = p.id === me?.id ? `${p.name} (you)` : p.name;
+    peersEl.append(el);
+    p.badge = drawablyBadge(el, { stroke: p.color });
+  }
+  document.getElementById("online-label").textContent = `Online · ${peers.size}`;
+}
+
+function showCursor(id, x, y) {
+  const peer = peers.get(id);
+  if (!peer) return;
+  let c = cursors.get(id);
+  if (!c) {
+    const el = document.createElement("div");
+    el.className = "cursor";
+    el.innerHTML = `<svg width="16" height="16" viewBox="0 0 16 16"><path d="M1 1l5.5 13 2-5.5L14 6.5z" fill="${peer.color}" stroke="#fff" stroke-width="1.2" stroke-linejoin="round"/></svg><span style="background:${peer.color}"></span>`;
+    el.querySelector("span").textContent = peer.name;
+    cursorsEl.append(el);
+    c = { el, timer: 0 };
+    cursors.set(id, c);
+  }
+  const [sx, sy] = toScreen(x, y);
+  c.el.style.left = sx + "px";
+  c.el.style.top = sy + "px";
+  c.el.classList.remove("idle");
+  clearTimeout(c.timer);
+  c.timer = setTimeout(() => c.el.classList.add("idle"), 3000);
+}
+function hideCursor(id) { cursors.get(id)?.el.classList.add("idle"); }
+function dropCursor(id) { cursors.get(id)?.el.remove(); cursors.delete(id); }
+
+/* ---------- network ---------- */
+function send(message) {
+  if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(message));
+}
+
+const handlers = {
+  init(m) {
+    me = m.you;
+    board = m.board;
+    strokes.clear();
+    for (const s of m.strokes) strokes.set(s.id, { ...s });
+    peers.clear();
+    for (const p of m.peers) peers.set(p.id, { ...p });
+    for (const [id] of cursors) dropCursor(id);
+    layout();
+    renderPeers();
+  },
+  join(m) { peers.set(m.peer.id, { ...m.peer }); renderPeers(); },
+  leave(m) { peers.get(m.id)?.badge?.destroy(); peers.delete(m.id); dropCursor(m.id); renderPeers(); },
+  draw(m) {
+    let s = strokes.get(m.id);
+    if (!s) {
+      s = { id: m.id, by: m.by, tool: m.tool, color: m.color, size: m.size, points: [], done: false };
+      strokes.set(m.id, s);
+    }
+    appendPoints(s, m.points);
+  },
+  end(m) { const s = strokes.get(m.id); if (s) finish(s); },
+  remove(m) {
+    if (!strokes.delete(m.id)) return;
+    renderBase();
+    queueLive();
+  },
+  clear() {
+    strokes.clear();
+    if (current) strokes.set(current.key, current);
+    renderBase();
+    queueLive();
+  },
+  cursor(m) { showCursor(m.id, m.x, m.y); },
+};
+
+function connect() {
+  const url = `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/whiteboard/ws`;
+  ws = new WebSocket(url);
+  ws.addEventListener("open", () => {
+    retry = 0;
+    stage.classList.remove("offline");
+    setStatus("Live");
+  });
+  ws.addEventListener("message", e => {
+    let m;
+    try { m = JSON.parse(e.data); } catch { return; }
+    handlers[m.type]?.(m);
+  });
+  ws.addEventListener("close", () => {
+    current = null;
+    pending = [];
+    stage.classList.add("offline");
+    setStatus("Reconnecting");
+    const delay = Math.min(5000, 400 * 2 ** retry++);
+    setTimeout(connect, delay);
+  });
+}
+
+addEventListener("resize", layout);
+layout();
+connect();
+</script>
+</body>
+</html>

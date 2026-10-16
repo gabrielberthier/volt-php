@@ -14,7 +14,7 @@ class DtoParser
         foreach ($properties as $property) {
             $reflectedTypes = $this->extractReflectionTypes($property);
             foreach ($reflectedTypes as $type) {
-                if (method_exists($type, 'isBuiltin') && !$type->isBuiltin()) {
+                if (method_exists($type, 'isBuiltin') && ! $type->isBuiltin()) {
                     if (class_exists((string) $type)) {
                         $reflectedClass = new \ReflectionClass((string) $type);
                         if ($reflectedClass->isUserDefined()) {
@@ -22,7 +22,7 @@ class DtoParser
                         }
                     }
                 } else {
-                    if ($type->__tostring() === 'array') {
+                    if ($type->__toString() === 'array') {
                         $type = $this->getTypeNameFromAnnotation($property);
 
                         if ($type) {
@@ -32,8 +32,8 @@ class DtoParser
                                     $parsed['join'] = [
                                         $property->getName() => [
                                             ...$this->parse((string) $type),
-                                            'meta' => ['is_array' => true]
-                                        ]
+                                            'meta' => ['is_array' => true],
+                                        ],
                                     ];
                                 }
                             }
@@ -54,19 +54,17 @@ class DtoParser
         return $parsed;
     }
 
-
-
     private function getTypeNameFromAnnotation(\ReflectionProperty $reflectionProperty): ?string
     {
         try {
             $docComment = $reflectionProperty->getDocComment();
 
             if ($docComment && preg_match('/@var\s+([^\s]+)/', $docComment, $matches)) {
-                
-                return str_replace(["[", "]"], "", $matches[1]);
+
+                return str_replace(['[', ']'], '', $matches[1]);
             }
         } catch (\ReflectionException $e) {
-            echo "Error: " . $e->getMessage() . PHP_EOL;
+            echo 'Error: '.$e->getMessage().PHP_EOL;
         }
 
         return null;

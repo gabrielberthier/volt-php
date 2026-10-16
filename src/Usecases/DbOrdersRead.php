@@ -2,10 +2,9 @@
 
 namespace Asyncopath\Usecases;
 
-
 use Asyncopath\Data\SqlJoin;
-use Doctrine\DBAL\DriverManager;
 use Doctrine\DBAL\Connection;
+use Doctrine\DBAL\DriverManager;
 use Luzrain\DbalDriver\AmphpPostgres\AsyncConection;
 use Luzrain\DbalDriver\AmphpPostgres\AsyncDriver;
 
@@ -38,7 +37,7 @@ class DbOrdersRead
     public function fetchById()
     {
         $data = $this->queryBuilder();
-        $sqlJoin = new SqlJoin();
+        $sqlJoin = new SqlJoin;
         $leftFields = [
             'id',
             'magalu_id',
@@ -54,7 +53,8 @@ class DbOrdersRead
             'uuid',
             'items',
         ];
-        $rightSide = ["item_id", "order_id", "product_id", "quantity", "price", "option_groups", "name",];
+        $rightSide = ['item_id', 'order_id', 'product_id', 'quantity', 'price', 'option_groups', 'name'];
+
         return $sqlJoin->parseLeftJoin($data, 'id', $leftFields, $rightSide, 'items');
         // foreach ($result as $row) {
         //     // $row is an associative-array of column values, e.g.: $row['column_name']
@@ -105,5 +105,4 @@ class DbOrdersRead
 
         return $query->fetchAllAssociative();
     }
-
 }
