@@ -15,7 +15,7 @@ class RouterSingleton implements RequestHandler
     {
         self::$router = RouterFactory::create();
 
-        $routerSettings = require __DIR__.'/router.php';
+        $routerSettings = require __DIR__.'/routes.php';
 
         $routerSettings(self::$router);
     }
@@ -25,7 +25,7 @@ class RouterSingleton implements RequestHandler
         self::$router->stop();
         self::$router = RouterFactory::create();
 
-        $routerSettings = require __DIR__.'/router.php';
+        $routerSettings = require __DIR__.'/routes.php';
 
         $routerSettings(self::$router);
     }

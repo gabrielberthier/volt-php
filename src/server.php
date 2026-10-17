@@ -11,7 +11,7 @@ use PHPStreamServer\Plugin\HttpServer\HttpServerPlugin;
 use PHPStreamServer\Plugin\HttpServer\ReloadStrategy\MaxRequestsReloadStrategy;
 use PHPStreamServer\Plugin\HttpServer\Worker\HttpServerProcess;
 
-$routerSettings = require __DIR__.'/router.php';
+$routerSettings = require __DIR__.'/routes.php';
 
 $server = new Server;
 
